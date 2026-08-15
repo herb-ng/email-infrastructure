@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Route53 Hosted Zone and AWS SES v2 Identity Setup for herbertng.com
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: herbertng.com
+    Description: The primary domain name
+  MailFromSubdomain:
+    Type: String
+    Default: mail
+    Description: Subdomain prefix used for SES custom MAIL FROM (e.g. mail.herbertng.com).
+
+  Resources:
+    # ------------------------------------------------------------
+    # 1. Route 53 Hosted Zone
+    # ------------------------------------------------------------
+    HostedZone:
+      Type: AWS::Route53::HostedZone
+      Properties:
+        Name: !Sub "${DomainName}."
+        HostedZoneConfig:
+          Comment: !Sub "Public hosted zone for ${DomainName}"
+
+    # ------------------------------------------------------------
+    # 2. Amazon SES v2 Domain Identity & Easy DKIM
+    # ------------------------------------------------------------
+    SESDomainIdentity:
+      Type: AWS::SES::EmailIdentity
+      Properties:
+        EmailIdentity: !Ref DomainName
+        DkimSigningAttributes:
+          NextSigningKeyLength: RSA_2048_BIT
+        MailFromAttributes:
+          MailFromDomain: !Sub "${MailFromSubDomain}.${DomainName}"
+          BehaviorOnMxFailure: REJECT_MESSAGE
+    # ------------------------------------------------------------
+    # 3. Route 53 DKIM CNAME Records (Auto-wired from SES)
+    # ------------------------------------------------------------
+    DkimRecord1:
+      Type: AWS::Route53::RecordSet
+      Properties:
+        HostedZoneId: !Ref HostedZone
+        Name: !GetAtt SESDomainIdentity.DkimDNSTokenName1
+        Type: CNAME
+        TTL: 300
+        ResourceRecords:
+          - !GetAtt SESDomainIdentity.DkimDNSTokenValue1
+    DkimRecord2:
+      Type: AWS::Route53::RecordSet
+      Properties:
+        HostedZoneId: !Ref HostedZone
+        Name: !GetAtt SESDomainIdentity.DkimDNSTokenName2
+        Type: CNAME
+        TTL: 300
+        ResourceRecords:
+          - !GetAtt SESDomainIdentity.DkimDNSTokenValue2
+
+    DkimRecord3:
+      Type: AWS::Route53::RecordSet
+      Properties:
+        HostedZoneId: !Ref HostedZone
+        Name: !GetAtt SESDomainIdentity.DkimDNSTokenName3
+        Type: CNAME
+        TTL: 300
+        ResourceRecords:
+          - !GetAtt SESDomainIdentity.DkimDNSTokenValue3  
+    # ------------------------------------------------------------
+    # 4. Custom MAIL FROM Domain DNS Records
+    # ------------------------------------------------------------
+    MailFromMXRecord:
+      Type: AWS::Route53::RecordSet
+      Properties:
+        HostedZoneId: !Ref HostedZone
+        Name: !Sub "${MailFromSubDomain}.${DomainName}."
+        Type: MX
+        TTL: 300
+        ResourceRecords:
+          - !Sub "10 feedback-smtp.${AWS::Region}.amazonses.com"
+
+    MailFromSPFRecord:
+      Type: AWS::Route53::RecordSet
+      Properties:
+        HostedZoneId: !Ref HostedZone
+        Name: !Sub "${MailFromSubDomain}.${DomainName}."
+        Type: TXT
+        TTL: 300
+        ResourceRecords:
+          - '"v=spf1 include:amazonses.com ~all"'
+    # ------------------------------------------------------------
+    # 5. Root Domain SPF & DMARC Policies
+    # ------------------------------------------------------------
+    RootSPFRecord:
+      Type: AWS::Route53::RecordSet
+      Properties:
+        HostedZoneId: !Ref HostedZone
+        Name: !Sub "${DomainName}."
+        Type: TXT
+        TTL: 300
+        ResourceRecords:
+          - '"v=spf1 include:amazonses.com ~all"'
+
+    DMARCRecord:
+      Type: AWS::Route53::RecordSet
+      Properties:
+        HostedZoneId: !Ref HostedZone
+        Name: !Sub "_dmarc.${DomainName}."
+        Type: TXT
+        TTL: 300
+        ResourceRecords:
+          - '"v=DMARC1; p=none; pct=100; sp=none;"'    
+  
+    Outputs:
+      HostedZoneId:
+        Description: Route 53 Hosted Zone ID
+        Value: !Ref HostedZone
+    
+      NameServers:
+        Description: Name servers assigned to the Route 53 zone. Update these at your domain registrar.
+        Value: !Join [", ", !GetAtt HostedZone.NameServers]
+    
+      SESIdentityArn:
+        Description: ARN of the SES Domain Identity
+        Value: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${DomainName}"
