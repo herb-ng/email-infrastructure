@@ -6,7 +6,7 @@ Parameters:
     Type: String
     Default: herbertng.com
     Description: The primary domain name
-  MailFromSubdomain:
+  MailFromSubDomain:
     Type: String
     Default: mail
     Description: Subdomain prefix used for SES custom MAIL FROM (e.g. mail.herbertng.com).
