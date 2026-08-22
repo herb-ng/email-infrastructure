@@ -102,7 +102,16 @@ Resources:
       TTL: 300
       ResourceRecords:
         - '"v=DMARC1; p=none; pct=100; sp=none;"'
-
+  # Inbound MX: Points root domain to SES inbound mail server
+  InboundRootMXRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${DomainName}."
+      Type: MX
+      TTL: 300
+      ResourceRecords:
+        - !Sub "10 inbound-smtp.${AWS::Region}.amazonaws.com"
   # ============================================================
   # 5. Inbound S3 Bucket & Permissions
   # ============================================================
