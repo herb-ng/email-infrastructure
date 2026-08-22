@@ -144,6 +144,29 @@ Resources:
             Condition:
               StringEquals:
                 aws:SourceAccount: !Ref AWS::AccountId
+  # ============================================================
+  # 6. SES Inbound Receipt Rule Set & Rule (S3 Action)
+  # ============================================================
+  ReceiptRuleSet:
+    Type: AWS::SES::ReceiptRuleSet
+    Properties:
+      RuleSetName: !Sub "${DomainName}-inbound-ruleset"
+
+  ReceiptRule:
+    Type: AWS::SES::ReceiptRule
+    DependsOn: InboundMailBucketPolicy
+    Properties:
+      RuleSetName: !Ref ReceiptRuleSet
+      Rule:
+        Name: StoreInboundEmailsToS3
+        Enabled: true
+        Recipients:
+          - !Ref DomainName        # Matches any user@herbertng.com
+        Actions:
+          - S3Action:
+              BucketName: !Ref InboundMailBucket
+              ObjectKeyPrefix: "inbox/"
+        ScanEnabled: true
 Outputs:
   SESIdentityArn:
     Description: ARN of the SES Domain Identity
